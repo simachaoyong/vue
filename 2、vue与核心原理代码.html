@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<title>Vue核心代码部分</title>
+</head>
+<body>
+	<div id="demo">demo
+		<!-- 视图层 -->
+		{{name}}
+		<input type="text" v-m="name">
+		<div v-h="html"></div>
+		<div v-f="a in arr"></div>
+		<p>{{name}}</p>
+	</div>
+	<script>
+		// 构造函数
+		// function Vue(obj){
+		// 	this.$el=obj.el
+		// 	this.$data=obj.data
+		// }
+		// class写法
+		class Vue{
+			constructor(props){
+				// 这里能打印出实例对象的值
+				// console.log(props);
+				// 创建生命周期
+				this.beforeCreate=props.beforeCreate;
+				// 获取实例化的节点
+				let el=this.$el=document.querySelector(props.el);
+				let data=this.$data=props.data;
+				// 利用发布订阅模式把M和V联系起来
+				let watch=this.$watch=new Observer ();
+				// 数据劫持，获取data对象中的每一个，遍历对象，一旦对象中的值改变会触发对应的回调函数
+				Object.keys(data).forEach((key)=>{
+					this.proxyData(key);
+				})
+				// 视图的编译
+				this.compile(el);
+			}
+			// 遍历整个data对象，并对数据进行一次劫持
+			proxyData(key){
+				// 这里的this指的是实例化后的对象
+				let self=this;
+				Object.defineProperty(self,key,{
+					// 数据改变触发set回调
+					set(newValue){//数据改变，那么师徒也会发生改变
+						// 一旦值改变this.$data的值也响应改变
+						self.$data[key]=newValue;
+						console.log("值发生了改变",newValue);
+						//发布者
+						// 这个是为了M-V转变
+						self.$watch.emit(key,null);
+					},
+					get(){
+						console.log("我查看了该值");
+						return self.$data[key];
+					}
+				})
+			}
+			// 编译模板，编译出所有的东西，就是把所有的el节点下的{{name}} v-for给编译出来
+			compile(el){
+				// 解析节点
+				let nodes=el.childNodes;
+				console.log(nodes);
+				for(let node of nodes){
+					// 遍历节点得到所需的内容
+					console.log(node);
+					// 区分是文本节点还是元素节点
+					switch(node.nodeType){
+						case 1://得到元素节点，模拟了两个，一个是vue中的v-model和v-html
+							if(node.hasAttribute('v-m')){
+								let attrVal=node.getAttribute('v-m');
+								node.value=this[attrVal];
+								// 监听输入事件
+								node.addEventListener('input',()=>{
+									// 获取输入框中的值
+									this[attrVal]=node.value;
+									return ()=>{
+										this[attrVal]=node.value;
+									}
+								})
+							}else if(node.hasAttribute('v-h')){
+								let attrVal=node.getAttribute('v-h');
+								node.innerHTML=this[attrVal];
+							}
+						case 3://判断是否为文本节点
+							this.compileText(node,'textContent')
+					}
+				}
+			}
+			// 处理文本节点函数
+			compileText(node,type){
+				let self=this;
+				let reg = /\{\{((?:.|\r?\n)+?)\}\}/g;
+				let txt=node.textContent;//获取节点的文本内容，接下来就是将name替换成队形的内容了
+				console.log(txt);
+				if(reg.test(txt)){
+					node.textContent=txt.replace(reg,(matched,value)=>{
+						console.log(matched,value);
+						// 监听者，监听来自set回调函数的发布
+						self.$watch.on(value,()=>{
+							node.textContent=self.$data[value];
+						})
+						return self[value];
+					})
+				}
+			}
+		}
+		// 监听者模式
+		class Observer {
+			constructor() {
+				// 空的队列
+				// 事件队列，发布者和订阅者的供需关系来去决定去向
+				this.list = {
+					// 'eat':[()=>{
+					//     console.log('eat')
+					// }]
+				}
+			}
+			// 监听 订阅者
+			on(key, fn) {
+				if (!this.list[key]) {
+					this.list[key] = [];
+				}
+				this.list[key].push(fn);
+			}
+			// 触发 发布者
+			emit(key, params) {
+				// 把所有存着回调函数的数组给取出来
+				let fns = this.list[key];
+				// 如果数组队列为空，则返回
+				if (!fns || fns.length === 0) {
+					return false;
+				}
+				// 如果不为空，我就遍历所有的函数执行
+				fns.forEach(fn => {
+					fn(params);
+				});
+			}
+		}
+		// vue的核心原理，先用构造函数创建一个实例对象
+		let vm=new Vue({
+			el:"#demo",
+			data:{
+				name:"laoyao",
+				html:`<p style="color:red">123</p>`,
+			},
+			created() {
+				
+			},
+			beforeCreate() {
+				
+			},
+			mounted() {
+				console.log('挂载之后');
+				this.name="laoxie"
+			},
+		});
+		console.log(vm);
+	</script>
+</body>
+</html>
